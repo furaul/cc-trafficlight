@@ -51,7 +51,13 @@ case "$state" in
   working)   glyph="🟡" ;;
   *)         glyph="🟢" ;;
 esac
+branch="$(git -C "${cwd:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
+  title="$glyph $project · $branch"
+else
+  title="$glyph $project"
+fi
 title_target="${CC_TL_TTY:-$tty_dev}"
 if [ -n "$title_target" ] && { [ -w "$title_target" ] || [ ! -e "$title_target" ]; }; then
-  printf '\033]0;%s %s\007' "$glyph" "$project" > "$title_target" 2>/dev/null || true
+  printf '\033]0;%s\007' "$title" > "$title_target" 2>/dev/null || true
 fi
