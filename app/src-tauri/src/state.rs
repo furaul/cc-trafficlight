@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -41,6 +42,18 @@ pub fn now_secs() -> u64 {
         .as_secs()
 }
 
+/// 该 tty 上是否还有进程（tab 是否还开着）。tty 未知时返回 true（无法判断则保留）。
+fn tty_alive(tty: &str) -> bool {
+    let name = tty.trim_start_matches("/dev/").trim();
+    if name.is_empty() || name == "unknown" {
+        return true;
+    }
+    match Command::new("ps").args(["-t", name, "-o", "pid="]).output() {
+        Ok(o) => !String::from_utf8_lossy(&o.stdout).trim().is_empty(),
+        Err(_) => true,
+    }
+}
+
 /// 扫描目录，解析所有 *.json；超过 stale_secs 未更新的删除并跳过。
 pub fn scan_dir(dir: &Path, stale_secs: u64) -> Vec<Session> {
     let mut out = Vec::new();
@@ -59,6 +72,12 @@ pub fn scan_dir(dir: &Path, stale_secs: u64) -> Vec<Session> {
         let Ok(sess) = serde_json::from_str::<Session>(&text) else {
             continue;
         };
+        // tab 已关闭（tty 上没进程）→ 立即移除，不管空闲多久
+        if !tty_alive(&sess.tty) {
+            std::fs::remove_file(&path).ok();
+            continue;
+        }
+        // 兜底：tty 未知的僵尸文件按超长时限清理
         if now.saturating_sub(sess.updated_at) > stale_secs {
             std::fs::remove_file(&path).ok();
             continue;
