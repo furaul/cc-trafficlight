@@ -100,8 +100,16 @@ function render(p) {
     : "全部就绪";
 
   const asn = buildAssignments(p.sessions);
+  const ordered = [...p.sessions].sort((a, b) => {
+    const A = asn[a.sessionId];
+    const B = asn[b.sessionId];
+    if (A && B) return A.win - B.win || A.tab - B.tab;
+    if (A) return -1;
+    if (B) return 1;
+    return 0;
+  });
   $("#list").innerHTML =
-    p.sessions
+    ordered
       .map((s) => {
         const a = asn[s.sessionId];
         const no = a ? "⌘" + a.tab : "";
