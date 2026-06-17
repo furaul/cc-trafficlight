@@ -1,3 +1,4 @@
+pub mod ghostty;
 pub mod state;
 pub mod watcher;
 

@@ -1,8 +1,24 @@
 const { listen } = window.__TAURI__.event;
 const { isPermissionGranted, requestPermission, sendNotification } =
   window.__TAURI__.notification;
+const { invoke } = window.__TAURI__.core;
 const winApi = window.__TAURI__.window;
 const appWin = winApi.getCurrentWindow();
+
+// Ghostty 标签编号映射（通过辅助功能读取）
+let tabMap = [];
+async function refreshTabs() {
+  try {
+    tabMap = await invoke("cc_tabs");
+  } catch (_) {
+    tabMap = [];
+  }
+  render(last);
+}
+function tabNoFor(project) {
+  const m = tabMap.find((t) => t.title && t.title.includes(project));
+  return m ? "⌘" + m.tab : "";
+}
 
 // 把窗口贴到主屏右下角，并随展开/收起改大小（避免大块死区挡住终端）
 const WIN_W = 268;
@@ -74,14 +90,15 @@ function render(p) {
 
   $("#list").innerHTML =
     p.sessions
-      .map(
-        (s) => `
-      <div class="row ${s.state === "waiting" ? "hot" : ""}">
+      .map((s) => {
+        const no = tabNoFor(s.project);
+        return `
+      <div class="row ${s.state === "waiting" ? "hot" : ""}" data-project="${s.project}" title="点击跳转到该标签">
         <span class="rdot" style="background:${COLORS[s.state]};box-shadow:0 0 7px ${COLORS[s.state]}"></span>
-        <div><div class="rname">${s.project}</div><div class="rstate">${LABEL[s.state]}</div></div>
+        <div><div class="rname">${s.project}${no ? ` <span class="rcmd">${no}</span>` : ""}</div><div class="rstate">${LABEL[s.state]}</div></div>
         <span class="rdur">${dur(s.updatedAt)}</span>
-      </div>`
-      )
+      </div>`;
+      })
       .join("") ||
     '<div class="row"><div class="rstate">无活跃会话</div></div>';
 
@@ -140,6 +157,12 @@ $("#wbody").addEventListener("click", () => {
   expanded = !expanded;
   $("#list").classList.toggle("show", expanded);
   layout();
+  if (expanded) refreshTabs();
+});
+
+$("#list").addEventListener("click", (e) => {
+  const row = e.target.closest(".row[data-project]");
+  if (row) invoke("cc_jump", { needle: row.dataset.project });
 });
 $("#wbody").addEventListener("contextmenu", (ev) => {
   ev.preventDefault();
@@ -148,4 +171,7 @@ $("#wbody").addEventListener("contextmenu", (ev) => {
 });
 
 setInterval(() => render(last), 5000);
+setInterval(() => {
+  if (expanded) refreshTabs();
+}, 4000);
 render(last);
