@@ -1,6 +1,37 @@
 const { listen } = window.__TAURI__.event;
 const { isPermissionGranted, requestPermission, sendNotification } =
   window.__TAURI__.notification;
+const winApi = window.__TAURI__.window;
+const appWin = winApi.getCurrentWindow();
+
+// 把窗口贴到主屏右下角，并随展开/收起改大小（避免大块死区挡住终端）
+const WIN_W = 268;
+const PILL_H = 52;
+const ROW_H = 46;
+const LIST_PAD = 16;
+async function layout() {
+  try {
+    const n = last.sessions.length || 1;
+    const h = expanded ? PILL_H + n * ROW_H + LIST_PAD + 24 : PILL_H + 8;
+    const mon = await winApi.primaryMonitor();
+    const scale = mon.scaleFactor || 1;
+    const sw = mon.size.width / scale;
+    const sh = mon.size.height / scale;
+    const margin = 14;
+    await appWin.setSize(new winApi.LogicalSize(WIN_W, h));
+    await appWin.setPosition(
+      new winApi.LogicalPosition(Math.round(sw - WIN_W - margin), Math.round(sh - h - margin))
+    );
+  } catch (_) {}
+}
+let lastSig = "";
+function maybeLayout() {
+  const sig = expanded + ":" + (last.sessions.length || 0);
+  if (sig !== lastSig) {
+    lastSig = sig;
+    layout();
+  }
+}
 
 const COLORS = {
   working: "#f59e0b",
@@ -53,6 +84,8 @@ function render(p) {
       )
       .join("") ||
     '<div class="row"><div class="rstate">无活跃会话</div></div>';
+
+  maybeLayout();
 }
 
 // ---- sound ----
@@ -106,6 +139,7 @@ listen("alert", async (e) => {
 $("#wbody").addEventListener("click", () => {
   expanded = !expanded;
   $("#list").classList.toggle("show", expanded);
+  layout();
 });
 $("#wbody").addEventListener("contextmenu", (ev) => {
   ev.preventDefault();
