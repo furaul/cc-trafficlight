@@ -73,3 +73,24 @@ return "notfound""#,
     };
     String::from_utf8_lossy(&out.stdout).contains("ok")
 }
+
+/// 按 (窗口序号, 标签序号) 精确切换标签。
+pub fn jump_index(win: u32, tab: u32) -> bool {
+    let script = format!(
+        r#"tell application "Ghostty" to activate
+tell application "System Events" to tell process "ghostty"
+  try
+    perform action "AXRaise" of window {win}
+    click radio button {tab} of tab group 1 of window {win}
+    return "ok"
+  end try
+end tell
+return "notfound""#,
+        win = win,
+        tab = tab
+    );
+    let Ok(out) = Command::new("osascript").arg("-e").arg(script).output() else {
+        return false;
+    };
+    String::from_utf8_lossy(&out.stdout).contains("ok")
+}
