@@ -13,8 +13,8 @@
       {
         "label": "widget",
         "url": "widget.html",
-        "width": 280,
-        "height": 220,
+        "width": 268,
+        "height": 60,
         "x": 1100,
         "y": 700,
         "decorations": false,

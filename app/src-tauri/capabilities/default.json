@@ -5,6 +5,10 @@
   "windows": ["widget", "pulse"],
   "permissions": [
     "core:default",
-    "notification:default"
+    "notification:default",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-primary-monitor",
+    "core:window:allow-current-monitor"
   ]
 }
