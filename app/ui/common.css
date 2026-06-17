@@ -69,9 +69,9 @@ html, body {
 }
 .row + .row { margin-top: 2px; }
 .row.hot { background: rgba(239, 68, 68, 0.12); }
-.row[data-project] { cursor: pointer; }
-.row[data-project]:hover { background: rgba(255, 255, 255, 0.06); }
-.row[data-project]:active { background: rgba(255, 255, 255, 0.12); }
+.row[data-win] { cursor: pointer; }
+.row[data-win]:hover { background: rgba(255, 255, 255, 0.06); }
+.row[data-win]:active { background: rgba(255, 255, 255, 0.12); }
 .rcmd {
   color: #60a5fa;
   font-size: 10px;

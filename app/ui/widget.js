@@ -15,9 +15,20 @@ async function refreshTabs() {
   }
   render(last);
 }
-function tabNoFor(project) {
-  const m = tabMap.find((t) => t.title && t.title.includes(project));
-  return m ? "⌘" + m.tab : "";
+// 给每个会话分配一个不重复的 Ghostty 标签（同名项目按顺序占用不同标签）
+function buildAssignments(sessions) {
+  const used = new Set();
+  const map = {};
+  for (const s of sessions) {
+    const idx = tabMap.findIndex(
+      (t, i) => !used.has(i) && t.title && t.title.includes(s.project)
+    );
+    if (idx >= 0) {
+      used.add(idx);
+      map[s.sessionId] = { win: tabMap[idx].win, tab: tabMap[idx].tab };
+    }
+  }
+  return map;
 }
 
 // 把窗口贴到主屏右下角，并随展开/收起改大小（避免大块死区挡住终端）
@@ -88,12 +99,15 @@ function render(p) {
     ? "工作中"
     : "全部就绪";
 
+  const asn = buildAssignments(p.sessions);
   $("#list").innerHTML =
     p.sessions
       .map((s) => {
-        const no = tabNoFor(s.project);
+        const a = asn[s.sessionId];
+        const no = a ? "⌘" + a.tab : "";
+        const data = a ? `data-win="${a.win}" data-tab="${a.tab}"` : "";
         return `
-      <div class="row ${s.state === "waiting" ? "hot" : ""}" data-project="${s.project}" title="点击跳转到该标签">
+      <div class="row ${s.state === "waiting" ? "hot" : ""}" ${data} title="点击跳转到该标签">
         <span class="rdot" style="background:${COLORS[s.state]};box-shadow:0 0 7px ${COLORS[s.state]}"></span>
         <div><div class="rname">${s.project}${no ? ` <span class="rcmd">${no}</span>` : ""}</div><div class="rstate">${LABEL[s.state]}</div></div>
         <span class="rdur">${dur(s.updatedAt)}</span>
@@ -161,8 +175,12 @@ $("#wbody").addEventListener("click", () => {
 });
 
 $("#list").addEventListener("click", (e) => {
-  const row = e.target.closest(".row[data-project]");
-  if (row) invoke("cc_jump", { needle: row.dataset.project });
+  const row = e.target.closest(".row[data-win]");
+  if (row)
+    invoke("cc_jump_index", {
+      win: parseInt(row.dataset.win, 10),
+      tab: parseInt(row.dataset.tab, 10),
+    });
 });
 $("#wbody").addEventListener("contextmenu", (ev) => {
   ev.preventDefault();

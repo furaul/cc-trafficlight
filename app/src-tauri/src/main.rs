@@ -15,10 +15,15 @@ fn cc_jump(needle: String) -> bool {
     ghostty::jump(&needle)
 }
 
+#[tauri::command]
+fn cc_jump_index(win: u32, tab: u32) -> bool {
+    ghostty::jump_index(win, tab)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![cc_tabs, cc_jump])
+        .invoke_handler(tauri::generate_handler![cc_tabs, cc_jump, cc_jump_index])
         .setup(|app| {
             if let Some(pulse) = app.get_webview_window("pulse") {
                 // 铺满主显示器，让边框脉冲贴着屏幕/全屏窗口四边
