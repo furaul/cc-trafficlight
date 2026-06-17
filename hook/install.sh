@@ -15,5 +15,10 @@ for ev in "${events[@]}"; do
       + [{matcher:"", hooks:[{type:"command", command:$cmd}]}])
   ' "$tmp" > "$tmp.next" && mv "$tmp.next" "$tmp"
 done
+
+# 关闭 CC 自动设置的 tab 标题，让 hook 的状态 glyph 独占标题
+jq '.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = "1"' "$tmp" > "$tmp.next" && mv "$tmp.next" "$tmp"
+
 mv "$tmp" "$SETTINGS"
 echo "Installed cc-trafficlight hooks into $SETTINGS"
+echo "Set CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1 (restart Claude Code sessions to take effect)"
