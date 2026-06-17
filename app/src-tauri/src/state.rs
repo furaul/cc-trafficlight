@@ -18,7 +18,8 @@ pub struct Session {
 
 pub fn priority(state: &str) -> u8 {
     match state {
-        "waiting" => 3,
+        "waiting" => 4,
+        "attention" => 3,
         "working" => 2,
         _ => 1,
     }
@@ -102,6 +103,14 @@ mod tests {
     fn aggregate_working_over_idle() {
         let v = vec![s("a", "idle", 1), s("b", "working", 1)];
         assert_eq!(aggregate(&v), "working");
+    }
+
+    #[test]
+    fn aggregate_waiting_beats_attention_beats_working() {
+        let v = vec![s("a", "working", 1), s("b", "attention", 1)];
+        assert_eq!(aggregate(&v), "attention");
+        let v2 = vec![s("a", "attention", 1), s("b", "waiting", 1)];
+        assert_eq!(aggregate(&v2), "waiting");
     }
 
     #[test]

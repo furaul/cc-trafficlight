@@ -2,8 +2,18 @@ const { listen } = window.__TAURI__.event;
 const { isPermissionGranted, requestPermission, sendNotification } =
   window.__TAURI__.notification;
 
-const COLORS = { working: "#f59e0b", waiting: "#ef4444", idle: "#22c55e" };
-const LABEL = { working: "工作中", waiting: "需要交互", idle: "空闲/完成" };
+const COLORS = {
+  working: "#f59e0b",
+  waiting: "#ef4444",
+  attention: "#60a5fa",
+  idle: "#22c55e",
+};
+const LABEL = {
+  working: "工作中",
+  waiting: "需要交互",
+  attention: "空闲等待",
+  idle: "空闲/完成",
+};
 const $ = (s) => document.querySelector(s);
 
 let expanded = false;
@@ -22,8 +32,11 @@ function render(p) {
   dot.style.animation = agg === "waiting" ? "blink .6s steps(1) infinite" : "none";
 
   const waiting = p.sessions.filter((s) => s.state === "waiting").length;
+  const attention = p.sessions.filter((s) => s.state === "attention").length;
   $("#wtxt").textContent = waiting
     ? waiting + " 个等你交互"
+    : attention
+    ? attention + " 个空闲等待"
     : agg === "working"
     ? "工作中"
     : "全部就绪";
