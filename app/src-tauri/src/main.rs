@@ -1,13 +1,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use cc_trafficlight_lib::watcher;
+use cc_trafficlight_lib::{ghostty, watcher};
 #[cfg(target_os = "macos")]
 use cc_trafficlight_lib::macos;
 use tauri::Manager;
 
+#[tauri::command]
+fn cc_tabs() -> Vec<ghostty::Tab> {
+    ghostty::list_tabs()
+}
+
+#[tauri::command]
+fn cc_jump(needle: String) -> bool {
+    ghostty::jump(&needle)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .invoke_handler(tauri::generate_handler![cc_tabs, cc_jump])
         .setup(|app| {
             if let Some(pulse) = app.get_webview_window("pulse") {
                 // 铺满主显示器，让边框脉冲贴着屏幕/全屏窗口四边
