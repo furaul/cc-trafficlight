@@ -1,4 +1,27 @@
+# --- build artifacts ---
 .superpowers/
 app/src-tauri/target/
 app/node_modules/
 app/src-tauri/gen/
+
+# --- secrets / local env ---
+.env
+.env.*
+*.pem
+*.key
+
+# --- macOS ---
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# --- editors / IDE ---
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- logs ---
+*.log
+npm-debug.log*
