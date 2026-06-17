@@ -6,7 +6,8 @@ use std::sync::mpsc::channel;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
-const STALE_SECS: u64 = 1800;
+// tab 存活由 tty 判断；这里只是 tty 未知僵尸文件的超长兜底（24h）
+const STALE_SECS: u64 = 86400;
 
 pub fn state_dir() -> PathBuf {
     if let Some(d) = std::env::var_os("CC_TL_DIR") {
