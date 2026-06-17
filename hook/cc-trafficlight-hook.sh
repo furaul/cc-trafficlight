@@ -14,7 +14,14 @@ file="$dir/$sid.json"
 case "$event" in
   SessionEnd) rm -f "$file"; exit 0 ;;
   UserPromptSubmit|PreToolUse|PostToolUse|SubagentStop) state="working" ;;
-  Notification) state="waiting" ;;
+  Notification)
+    # 区分“真阻塞（请求权限）”与“空闲等你输入”。
+    msg="$(printf '%s' "$payload" | jq -r '.message // ""')"
+    case "$msg" in
+      *[Ww]"aiting for"*[Ii]nput*) state="attention" ;;
+      *) state="waiting" ;;
+    esac
+    ;;
   Stop) state="idle" ;;
   SessionStart) state="idle" ;;
   *) state="idle" ;;
@@ -39,9 +46,10 @@ jq -n --arg sid "$sid" --arg p "$project" --arg c "$cwd" \
   '{sessionId:$sid,project:$p,cwd:$c,state:$s,tty:$t,updatedAt:$u}' > "$file"
 
 case "$state" in
-  waiting) glyph="🔴" ;;
-  working) glyph="🟡" ;;
-  *)       glyph="🟢" ;;
+  waiting)   glyph="🔴" ;;
+  attention) glyph="🔵" ;;
+  working)   glyph="🟡" ;;
+  *)         glyph="🟢" ;;
 esac
 title_target="${CC_TL_TTY:-$tty_dev}"
 if [ -n "$title_target" ] && { [ -w "$title_target" ] || [ ! -e "$title_target" ]; }; then

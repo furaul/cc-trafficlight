@@ -22,6 +22,14 @@ state=$(jq -r .state "$CC_TL_DIR/s1.json"); check "$state" "waiting" "Notificati
 echo '{"session_id":"s1","cwd":"/Users/x/dev/web-dashboard"}' | "$HOOK" Stop
 state=$(jq -r .state "$CC_TL_DIR/s1.json"); check "$state" "idle" "Stop=>idle"
 
+# Notification (permission message) -> waiting
+echo '{"session_id":"s3","cwd":"/Users/x/dev/api","message":"Claude needs your permission to use Bash"}' | "$HOOK" Notification
+state=$(jq -r .state "$CC_TL_DIR/s3.json"); check "$state" "waiting" "permission notification=>waiting"
+
+# Notification (idle waiting message) -> attention
+echo '{"session_id":"s3","cwd":"/Users/x/dev/api","message":"Claude is waiting for your input"}' | "$HOOK" Notification
+state=$(jq -r .state "$CC_TL_DIR/s3.json"); check "$state" "attention" "idle-wait notification=>attention"
+
 # tab title OSC written to CC_TL_TTY
 echo '{"session_id":"s2","cwd":"/Users/x/dev/api"}' | "$HOOK" Notification
 grep -q $'\033]0;🔴 api\007' "$CC_TL_TTY"; check "$?" "0" "waiting writes red OSC title"

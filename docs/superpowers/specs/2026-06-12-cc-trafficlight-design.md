@@ -47,15 +47,17 @@
 
 五种逻辑状态，颜色与优先级：
 
-| 状态 | 颜色 | tab 符号 | 聚合优先级（高→低） |
-|------|------|---------|--------------------|
-| 需要交互 waiting | 🔴 红（闪） | 🔴 | 1（最高） |
-| 错误 error | 🔴 红（常亮） | 🔴 | 2（见 §8 限制） |
-| 工作中 working | 🟡 黄 | 🟡 | 3 |
-| 空闲/完成 idle | 🟢 绿 | 🟢 | 4 |
-| 已结束 ended | ⚫ 灰 | （移除该 tab 项） | — |
+| 状态 | 颜色 | tab 符号 | 聚合优先级（高→低） | 触发报警 |
+|------|------|---------|--------------------|---------|
+| 需要交互 waiting（真阻塞，如权限请求） | 🔴 红（闪） | 🔴 | 1（最高） | 是（脉冲+通知+声音） |
+| 空闲等待 attention（CC 空闲等你输入） | 🔵 蓝（常亮） | 🔵 | 2 | 否 |
+| 工作中 working | 🟡 黄 | 🟡 | 3 | 否 |
+| 空闲/完成 idle | 🟢 绿 | 🟢 | 4 | 否 |
+| 已结束 ended | ⚫ 灰 | （移除该 tab 项） | — | 否 |
 
 **聚合规则（worst-state-wins）**：悬浮灯主灯颜色取所有活跃会话中优先级最高的状态。
+**attention vs waiting**：CC 的 `Notification` 既在"请求权限（真阻塞）"也在"空闲等你输入"时触发。按 message 区分——含 "waiting for ... input" 归为 attention（蓝、不报警），其余归为 waiting（红、报警）。这样晾着的空闲会话不会让灯一直红。
+（error 态仍不实现，见 §9。）
 
 ## 5. Hook 映射
 
@@ -67,7 +69,7 @@
 | `UserPromptSubmit` | state=working |
 | `PreToolUse` | state=working |
 | `PostToolUse` | state=working |
-| `Notification` | state=waiting（权限请求 / 等待输入时触发） |
+| `Notification` | 按 message 区分：权限请求 → waiting；"等你输入" → attention |
 | `Stop` | state=idle（一轮完成） |
 | `SubagentStop` | state=working（主流程通常仍在继续） |
 | `SessionEnd` | 删除该会话状态文件 |
