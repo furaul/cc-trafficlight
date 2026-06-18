@@ -42,6 +42,11 @@ pub fn now_secs() -> u64 {
         .as_secs()
 }
 
+// “工作中”是高频状态：真在干活时 hook 每几秒就触发一次。
+// 超过这个时长没更新还标着 working，说明早已干完/被打断（Stop 没触发），降级为 idle。
+// waiting/attention 是“等你响应”的状态，可能合理地等很久，不降级。
+const WORKING_STALE_SECS: u64 = 120;
+
 /// 该 tty 上是否还有进程（tab 是否还开着）。tty 未知时返回 true（无法判断则保留）。
 fn tty_alive(tty: &str) -> bool {
     let name = tty.trim_start_matches("/dev/").trim();
@@ -69,7 +74,7 @@ pub fn scan_dir(dir: &Path, stale_secs: u64) -> Vec<Session> {
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
-        let Ok(sess) = serde_json::from_str::<Session>(&text) else {
+        let Ok(mut sess) = serde_json::from_str::<Session>(&text) else {
             continue;
         };
         // tab 已关闭（tty 上没进程）→ 立即移除，不管空闲多久
@@ -81,6 +86,10 @@ pub fn scan_dir(dir: &Path, stale_secs: u64) -> Vec<Session> {
         if now.saturating_sub(sess.updated_at) > stale_secs {
             std::fs::remove_file(&path).ok();
             continue;
+        }
+        // 过期的 working 视为 idle（已干完/被打断，Stop 没触发）
+        if sess.state == "working" && now.saturating_sub(sess.updated_at) > WORKING_STALE_SECS {
+            sess.state = "idle".to_string();
         }
         out.push(sess);
     }
@@ -155,6 +164,28 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].session_id, "a");
         assert!(!stale.exists(), "stale file should be deleted");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn stale_working_demoted_to_idle() {
+        let dir = std::env::temp_dir().join(format!("cctl-stale-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let now = now_secs();
+        // fresh working stays working; old working becomes idle; old waiting stays waiting
+        for (id, st, ago) in [("a", "working", 5u64), ("b", "working", 999), ("c", "waiting", 999)] {
+            write!(
+                std::fs::File::create(dir.join(format!("{id}.json"))).unwrap(),
+                r#"{{"sessionId":"{id}","project":"p","state":"{st}","updatedAt":{}}}"#,
+                now - ago
+            )
+            .unwrap();
+        }
+        let mut sessions = scan_dir(&dir, 86400);
+        sessions.sort_by(|x, y| x.session_id.cmp(&y.session_id));
+        assert_eq!(sessions[0].state, "working", "fresh working kept");
+        assert_eq!(sessions[1].state, "idle", "stale working demoted");
+        assert_eq!(sessions[2].state, "waiting", "stale waiting not demoted");
         std::fs::remove_dir_all(&dir).ok();
     }
 

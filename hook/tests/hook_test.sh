@@ -14,9 +14,9 @@ echo '{"session_id":"s1","cwd":"/Users/x/dev/web-dashboard"}' | "$HOOK" UserProm
 state=$(jq -r .state "$CC_TL_DIR/s1.json"); check "$state" "working" "UserPromptSubmit=>working"
 proj=$(jq -r .project "$CC_TL_DIR/s1.json"); check "$proj" "web-dashboard" "project=basename(cwd)"
 
-# Notification -> waiting
+# Notification without message (unknown) -> attention (not an alarming red)
 echo '{"session_id":"s1","cwd":"/Users/x/dev/web-dashboard"}' | "$HOOK" Notification
-state=$(jq -r .state "$CC_TL_DIR/s1.json"); check "$state" "waiting" "Notification=>waiting"
+state=$(jq -r .state "$CC_TL_DIR/s1.json"); check "$state" "attention" "unknown Notification=>attention"
 
 # Stop -> idle
 echo '{"session_id":"s1","cwd":"/Users/x/dev/web-dashboard"}' | "$HOOK" Stop
@@ -31,7 +31,7 @@ echo '{"session_id":"s3","cwd":"/Users/x/dev/api","message":"Claude is waiting f
 state=$(jq -r .state "$CC_TL_DIR/s3.json"); check "$state" "attention" "idle-wait notification=>attention"
 
 # tab title OSC written to CC_TL_TTY
-echo '{"session_id":"s2","cwd":"/Users/x/dev/api"}' | "$HOOK" Notification
+echo '{"session_id":"s2","cwd":"/Users/x/dev/api","message":"Claude needs your permission to use Bash"}' | "$HOOK" Notification
 grep -q $'\033]0;🔴 api\007' "$CC_TL_TTY"; check "$?" "0" "waiting writes red OSC title"
 echo '{"session_id":"s2","cwd":"/Users/x/dev/api"}' | "$HOOK" UserPromptSubmit
 grep -q $'\033]0;🟡 api\007' "$CC_TL_TTY"; check "$?" "0" "working writes amber OSC title"

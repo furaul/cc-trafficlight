@@ -15,11 +15,12 @@ case "$event" in
   SessionEnd) rm -f "$file"; exit 0 ;;
   UserPromptSubmit|PreToolUse|PostToolUse|SubagentStop) state="working" ;;
   Notification)
-    # 区分“真阻塞（请求权限）”与“空闲等你输入”。
+    # 只有“请求权限”这类真阻塞才判 waiting(红)；其余通知（含空闲等输入）
+    # 一律按 attention(蓝)，避免把非阻塞通知误报成醒目的红灯。
     msg="$(printf '%s' "$payload" | jq -r '.message // ""')"
     case "$msg" in
-      *[Ww]"aiting for"*[Ii]nput*) state="attention" ;;
-      *) state="waiting" ;;
+      *[Pp]ermission*|*"needs your"*) state="waiting" ;;
+      *) state="attention" ;;
     esac
     ;;
   Stop) state="idle" ;;
