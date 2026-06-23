@@ -5,6 +5,7 @@
   --green: #22c55e;
   --amber: #f59e0b;
   --red: #ef4444;
+  --panel-w: 268px;
 }
 * { box-sizing: border-box; }
 html, body {
@@ -39,7 +40,6 @@ html, body {
   padding: 8px 13px 8px 10px;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 .wdot {
   width: 15px;
@@ -55,8 +55,7 @@ html, body {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 7px;
-  width: 252px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  width: var(--panel-w);
   display: none;
 }
 .list.show { display: block; }
@@ -88,13 +87,12 @@ html, body {
 
 /* 探出动作条 */
 .peek {
-  width: 268px;
+  width: var(--panel-w);
   background: rgba(8, 11, 17, 0.92);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   display: none;
 }

@@ -31,29 +31,36 @@ function buildAssignments(sessions) {
   return map;
 }
 
-// 把窗口贴到主屏右下角，并随展开/收起改大小（避免大块死区挡住终端）
-const WIN_W = 268;
-const PILL_H = 52;
-const ROW_H = 46;
-const LIST_PAD = 16;
+// 把窗口贴到主屏右下角，按实际内容（药丸 + 动作条 + 展开列表）自适应大小。
+// 内容四周各留 PAD，避免窗口边界把面板的圆角/边缘裁成直角。
+const PAD = 8; // 必须 = .widget 的 right/bottom inset
 async function layout() {
   try {
-    const n = last.sessions.length || 1;
-    const h = expanded ? PILL_H + n * ROW_H + LIST_PAD + 24 : PILL_H + 8;
+    const el = document.querySelector(".widget");
+    const r = el.getBoundingClientRect();
+    const w = Math.ceil(r.width) + PAD * 2;
+    const h = Math.ceil(r.height) + PAD * 2;
     const mon = await winApi.primaryMonitor();
     const scale = mon.scaleFactor || 1;
     const sw = mon.size.width / scale;
     const sh = mon.size.height / scale;
-    const margin = 14;
-    await appWin.setSize(new winApi.LogicalSize(WIN_W, h));
+    const edge = 14; // 内容距屏幕边缘
+    await appWin.setSize(new winApi.LogicalSize(w, h));
     await appWin.setPosition(
-      new winApi.LogicalPosition(Math.round(sw - WIN_W - margin), Math.round(sh - h - margin))
+      new winApi.LogicalPosition(
+        Math.round(sw - edge + PAD - w),
+        Math.round(sh - edge + PAD - h)
+      )
     );
   } catch (_) {}
 }
 let lastSig = "";
 function maybeLayout() {
-  const sig = expanded + ":" + (last.sessions.length || 0);
+  const pl = pendingList();
+  const top = pl[0];
+  const sig =
+    expanded + ":" + (last.sessions.length || 0) + ":" + pl.length +
+    ":" + (top ? top.sessionId + top.state : "");
   if (sig !== lastSig) {
     lastSig = sig;
     layout();
