@@ -241,6 +241,15 @@ listen("alert", async (e) => {
   }
 });
 
+listen("hotkey-cycle", async () => {
+  await refreshTabs();          // 确保 tabMap 最新（药丸没展开过时也能跳）
+  const pl = pendingList();
+  if (!pl.length) return;
+  const item = pl[jumpCursor % pl.length];
+  jumpTo(item);
+  jumpCursor = (jumpCursor + 1) % pl.length; // 下次跳下一个
+});
+
 $("#wbody").addEventListener("click", () => {
   expanded = !expanded;
   $("#list").classList.toggle("show", expanded);
