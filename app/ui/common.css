@@ -85,3 +85,43 @@ html, body {
 .rname { font-size: 12.5px; font-weight: 600; }
 .rstate { font-size: 10.5px; color: var(--muted); }
 .rdur { margin-left: auto; font-size: 10.5px; color: #5a6376; }
+
+/* 探出动作条 */
+.peek {
+  width: 268px;
+  background: rgba(8, 11, 17, 0.92);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  display: none;
+}
+.peek.show { display: block; }
+.actionbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 11px;
+  cursor: pointer;
+  position: relative;
+}
+.actionbar:hover { background: rgba(255, 255, 255, 0.06); }
+.actionbar:active { background: rgba(255, 255, 255, 0.12); }
+.adot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
+.ameta { flex: 1; min-width: 0; }
+.aname { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aname .rcmd { margin-left: 6px; }
+.astate { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.ago {
+  font-size: 11px; color: #dfe4ee; background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px; padding: 6px 10px; white-space: nowrap;
+}
+.actionbar:hover .ago { background: rgba(255, 255, 255, 0.14); }
+.amore {
+  position: absolute; top: 6px; right: 8px; font-size: 9.5px; color: var(--muted);
+  background: rgba(8, 11, 17, 0.9); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0 5px;
+}
+.amore:empty { display: none; }
