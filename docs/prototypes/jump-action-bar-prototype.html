@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>cc-trafficlight · 探出动作条 + 快捷跳转 原型</title>
+<style>
+  :root{
+    --working:#f59e0b; --waiting:#ef4444; --attention:#60a5fa; --idle:#22c55e;
+    --panel:#1b1f27; --panel2:#222732; --txt:#e7e9ee; --sub:#9aa3b2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,"PingFang SC",system-ui,sans-serif;background:#2a2f3a;color:var(--txt);overflow:hidden}
+  #desktop{position:fixed;inset:0;overflow:hidden;
+    background:radial-gradient(1200px 800px at 70% 20%, #3a4150 0%, #20242e 60%, #15181f 100%);}
+
+  /* 全屏闪烁边框 */
+  #border{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:50;transition:opacity .3s}
+  #border.red{box-shadow:inset 0 0 0 6px var(--waiting), inset 0 0 90px rgba(239,68,68,.5);animation:pulseRed 1.8s ease-in-out infinite}
+  #border.green{box-shadow:inset 0 0 0 5px var(--idle), inset 0 0 60px rgba(34,197,94,.32);animation:pulseGreen 2.4s ease-in-out infinite}
+  @keyframes pulseRed{0%,100%{opacity:.3}50%{opacity:1}}
+  @keyframes pulseGreen{0%,100%{opacity:.18}50%{opacity:.75}}
+
+  /* 控制面板 */
+  #panel{position:fixed;top:18px;left:18px;width:344px;background:var(--panel);
+    border:1px solid #2c323d;border-radius:14px;padding:16px;z-index:80;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  #panel h1{font-size:14px;margin:0 0 4px;font-weight:700}
+  #panel .hint{font-size:12px;color:var(--sub);line-height:1.5;margin:0 0 12px}
+  #panel .grp{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  #panel button{font-size:12px;border:0;border-radius:9px;padding:8px 10px;cursor:pointer;background:var(--panel2);color:var(--txt)}
+  #panel button:hover{filter:brightness(1.25)}
+  #playBtn{background:#2563eb;font-weight:700;font-size:13px;padding:10px 14px;width:100%}
+  #playBtn:disabled{opacity:.5;cursor:default}
+  .k{display:inline-block;min-width:18px;text-align:center;border:1px solid #3a414d;border-radius:5px;padding:1px 5px;font-size:11px;color:var(--sub);background:#171b22}
+  .legend{font-size:11px;color:var(--sub);margin-top:8px;line-height:1.8}
+  .swatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .divider{height:1px;background:#2c323d;margin:12px 0}
+
+  /* 旁白字幕 */
+  #caption{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.96);z-index:85;
+    background:rgba(15,18,24,.92);border:1px solid #313845;border-radius:14px;padding:18px 26px;max-width:520px;text-align:center;
+    font-size:17px;line-height:1.5;opacity:0;transition:all .3s;pointer-events:none;box-shadow:0 16px 40px rgba(0,0,0,.55)}
+  #caption.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  #caption b{color:#7dd3fc}
+
+  /* 顶部模拟标签栏 */
+  #tabs{position:fixed;top:0;left:0;right:0;height:36px;background:#171b22;display:flex;border-bottom:1px solid #262c36;z-index:40;font-size:12px}
+  #tabs .tab{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;color:var(--sub);border-right:1px solid #262c36;position:relative;transition:background .2s}
+  #tabs .tab.active{color:var(--txt);background:#1f242e}
+  #tabs .tab .td{width:8px;height:8px;border-radius:50%;transition:background .3s}
+  #tabs .tab .cmd{position:absolute;right:8px;font-size:10px;color:#677}
+  .flash{animation:tabflash .45s ease 3}
+  @keyframes tabflash{0%,100%{background:#1f242e}50%{background:#3b6fd4;color:#fff}}
+
+  /* 右下角药丸 + 动作条 */
+  #dock{position:fixed;right:18px;bottom:18px;width:300px;z-index:70;display:flex;flex-direction:column;gap:8px}
+  #peek{background:var(--panel);border:1px solid #313845;border-radius:14px;overflow:hidden;transform-origin:bottom center;
+    box-shadow:0 12px 34px rgba(0,0,0,.5);
+    max-height:0;opacity:0;transform:translateY(14px) scaleY(.5);
+    transition:max-height .34s cubic-bezier(.34,1.4,.5,1),opacity .26s,transform .34s cubic-bezier(.34,1.4,.5,1)}
+  #peek.show{max-height:128px;opacity:1;transform:translateY(0) scaleY(1)}
+  .actionbar{display:flex;align-items:center;gap:10px;padding:13px 12px;cursor:pointer;position:relative;transition:background .15s}
+  .actionbar:hover{background:var(--panel2)}
+  .actionbar.swap{animation:swap .32s ease}
+  @keyframes swap{0%{opacity:0;transform:translateX(14px)}100%{opacity:1;transform:translateX(0)}}
+  .actionbar .dot{width:13px;height:13px;border-radius:50%;flex:0 0 auto}
+  .actionbar .meta{flex:1;min-width:0}
+  .actionbar .nm{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .actionbar .nm .cmd{font-size:11px;color:#cfd6e4;background:#2f3645;border-radius:5px;padding:1px 6px;margin-left:6px;font-weight:600}
+  .actionbar .st{font-size:12px;color:var(--sub);margin-top:3px}
+  .actionbar .go{font-size:12px;color:#dfe4ee;background:#3a4250;border-radius:8px;padding:7px 11px;white-space:nowrap}
+  .actionbar:hover .go{background:#4a5466}
+  .actionbar .more{position:absolute;top:7px;right:9px;font-size:10px;color:var(--sub);background:#171b22;border:1px solid #313845;border-radius:8px;padding:1px 6px}
+  .hot{font-size:11px;color:var(--sub);padding:7px 12px;border-top:1px solid #262c36;display:flex;justify-content:space-between;align-items:center}
+
+  #pill{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid #2c323d;border-radius:999px;padding:10px 14px;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.45);user-select:none}
+  #pill .lights{display:flex;flex-direction:column;gap:3px;background:#0c0e12;border-radius:8px;padding:5px 4px}
+  #pill .lights i{width:9px;height:9px;border-radius:50%;background:#3a3f4a;display:block;transition:background .3s,box-shadow .3s}
+  #pill .wtxt{font-size:13px;font-weight:700}
+  #pill .wsub{font-size:11px;color:var(--sub)}
+  .blink{animation:blink .7s steps(1) infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(12px);background:#11151c;border:1px solid #313845;border-radius:10px;padding:10px 16px;font-size:13px;opacity:0;transition:all .25s;z-index:90;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .cmd2{font-size:10px;color:#cfd6e4;background:#2f3645;border-radius:4px;padding:1px 5px}
+</style>
+</head>
+<body>
+<div id="desktop">
+  <div id="border"></div>
+  <div id="tabs"></div>
+  <div id="caption"></div>
+
+  <div id="panel">
+    <h1>原型控制台 <span style="color:var(--sub);font-weight:400">（真实 App 无此面板）</span></h1>
+    <p class="hint">先点下面蓝色按钮看<b>自动演示</b>（带旁白），再自己手动点按钮 / 按 <span class="k">J</span> 体验。</p>
+    <button id="playBtn" onclick="playDemo()">▶ 自动演示全流程（约 20 秒）</button>
+    <div class="divider"></div>
+    <div class="grp">
+      <button onclick="sim('s1','waiting')">①cc-trafficlight → 待确认</button>
+      <button onclick="sim('s3','waiting')">③qwen-code → 待确认</button>
+    </div>
+    <div class="grp">
+      <button onclick="sim('s2','idle')">②Downloads → 完成</button>
+      <button onclick="sim('s4','idle')">④VibeCodingGame → 完成</button>
+    </div>
+    <div class="grp">
+      <button onclick="sim('s1','working')">①回到工作中</button>
+      <button onclick="resolveAll()">全部清空</button>
+    </div>
+    <div class="legend">
+      <span class="swatch" style="background:var(--waiting)"></span>待确认(红,闪框)
+      <span class="swatch" style="background:var(--idle)"></span>完成(绿,柔和闪)
+      <span class="swatch" style="background:var(--working)"></span>工作中(黄)<br>
+      动作条只显<b>最紧急一个</b>(红&gt;绿),其余 <b>+N</b> 计数;按 J 循环跳。
+    </div>
+  </div>
+
+  <div id="dock">
+    <div id="peek">
+      <div class="actionbar" id="actionbar" onclick="jumpCurrent()">
+        <span class="dot" id="ab-dot"></span>
+        <div class="meta"><div class="nm" id="ab-name">—</div><div class="st" id="ab-state">—</div></div>
+        <div class="go">跳转 →</div>
+        <div class="more" id="ab-more" style="display:none"></div>
+      </div>
+      <div class="hot"><span>循环跳转</span><span><span class="k">⌥</span><span class="k">⌘</span><span class="k">J</span> （原型按 <span class="k">J</span>）</span></div>
+    </div>
+    <div id="pill" onclick="toggleList()">
+      <div class="lights"><i id="l-r"></i><i id="l-y"></i><i id="l-g"></i></div>
+      <div style="flex:1"><div class="wtxt" id="wtxt">全部就绪</div><div class="wsub">点击展开全部会话</div></div>
+    </div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<script>
+const COLORS={working:'#f59e0b',waiting:'#ef4444',attention:'#60a5fa',idle:'#22c55e'};
+const LABEL={working:'工作中',waiting:'需要交互 · 等你确认',attention:'空闲等待',idle:'已完成 · 待查看'};
+const PRIO={waiting:2,idle:1};
+const sessions={
+  s1:{name:'cc-trafficlight',tab:1,state:'working',since:Date.now()},
+  s2:{name:'Downloads',tab:2,state:'working',since:Date.now()},
+  s3:{name:'qwen-code',tab:3,state:'working',since:Date.now()},
+  s4:{name:'VibeCodingGame',tab:4,state:'working',since:Date.now()},
+};
+let cursor=0, activeTab=1, lastCurId=null;
+function dur(since){const s=Math.floor((Date.now()-since)/1000);return s<60?s+'s':Math.floor(s/60)+'m';}
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=Object.values(sessions).map(s=>
+    `<div class="tab ${s.tab===activeTab?'active':''}" id="tab-${s.tab}"><span class="td" style="background:${COLORS[s.state]}"></span>${s.name}<span class="cmd">⌘${s.tab}</span></div>`).join('');
+}
+function pending(){
+  return Object.entries(sessions).filter(([id,s])=>s.state==='waiting'||s.state==='idle')
+    .sort((a,b)=>PRIO[b[1].state]-PRIO[a[1].state]||a[1].tab-b[1].tab).map(([id,s])=>({id,...s}));
+}
+function render(){
+  renderTabs();
+  const p=pending();
+  const has=st=>Object.values(sessions).some(s=>s.state===st);
+  const setLight=(el,on,c)=>{el.style.background=on?c:'#3a3f4a';el.style.boxShadow=on?`0 0 8px ${c}`:'none';};
+  setLight(document.getElementById('l-r'),has('waiting'),COLORS.waiting);
+  setLight(document.getElementById('l-y'),has('working'),COLORS.working);
+  setLight(document.getElementById('l-g'),has('idle'),COLORS.idle);
+  document.getElementById('l-r').classList.toggle('blink',has('waiting'));
+
+  const nWait=p.filter(x=>x.state==='waiting').length, nDone=p.filter(x=>x.state==='idle').length;
+  document.getElementById('wtxt').textContent=nWait?`${nWait} 个等你确认`:nDone?`${nDone} 个已完成`:has('working')?'工作中':'全部就绪';
+
+  const peek=document.getElementById('peek');
+  if(p.length){
+    if(cursor>=p.length)cursor=0;
+    const cur=p[cursor];
+    document.getElementById('ab-dot').style.background=COLORS[cur.state];
+    document.getElementById('ab-dot').className='dot'+(cur.state==='waiting'?' blink':'');
+    document.getElementById('ab-name').innerHTML=`${cur.name} <span class="cmd">⌘${cur.tab}</span>`;
+    document.getElementById('ab-state').textContent=`${LABEL[cur.state]} · ${dur(cur.since)}`;
+    const more=document.getElementById('ab-more');
+    if(p.length>1){more.style.display='block';more.textContent=`+${p.length-1}`;}else more.style.display='none';
+    peek.classList.add('show');
+    if(cur.id!==lastCurId){const ab=document.getElementById('actionbar');ab.classList.remove('swap');void ab.offsetWidth;ab.classList.add('swap');lastCurId=cur.id;}
+  }else{peek.classList.remove('show');lastCurId=null;}
+
+  document.getElementById('border').className=nWait?'red':(nDone?'green':'');
+}
+function sim(id,state){sessions[id].state=state;sessions[id].since=Date.now();cursor=0;render();}
+function resolveAll(){Object.values(sessions).forEach(s=>{s.state='working';s.since=Date.now();});cursor=0;render();}
+setInterval(()=>{if(pending().length)render();},1000);
+function jumpCurrent(){const p=pending();if(!p.length)return;doJump(p[cursor%p.length]);}
+function hotkeyCycle(){const p=pending();if(!p.length){toast('没有待响应的会话');return;}doJump(p[cursor%p.length]);cursor=(cursor+1)%Math.max(p.length,1);render();}
+function doJump(cur){
+  activeTab=cur.tab;renderTabs();
+  const el=document.getElementById('tab-'+cur.tab);
+  if(el){el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+  toast(`跳转到 ⌘${cur.tab} · ${cur.name}`);
+  if(cur.state==='idle')sessions[cur.id].state='working';
+  render();
+}
+function toggleList(){toast('（真实 App：点药丸展开/收起完整会话列表）');}
+let tt;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),1700);}
+window.addEventListener('keydown',e=>{if(e.key==='j'||e.key==='J'){e.preventDefault();hotkeyCycle();}});
+
+// ---- 自动演示 ----
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function cap(html){const c=document.getElementById('caption');if(html===null){c.classList.remove('show');return;}c.innerHTML=html;c.classList.add('show');}
+async function playDemo(){
+  const btn=document.getElementById('playBtn');btn.disabled=true;
+  resolveAll();await sleep(400);
+  cap('一切正常时,药丸安静地待在右下角 🟡 工作中');await sleep(2200);
+  cap('<b>cc-trafficlight</b> 需要你确认 →<br>药丸自动「探出」一条红色动作条 + 全屏红框脉冲');sim('s1','waiting');await sleep(3200);
+  cap(null);await sleep(300);
+  cap('又有一个 <b>qwen-code</b> 等确认,一个 <b>Downloads</b> 完成了<br>动作条仍只显最紧急的(红),右上角 <b>+2</b> 提示还有 2 个');sim('s3','waiting');sim('s2','idle');await sleep(3600);
+  cap('按一次 <b>⌥⌘J</b> →跳到第一个待响应 tab(顶栏高亮)');await sleep(900);hotkeyCycle();await sleep(2600);
+  cap('再按 <b>⌥⌘J</b> →循环到下一个待响应 tab');await sleep(900);hotkeyCycle();await sleep(2600);
+  cap('你在 cc-trafficlight 里回复了 →它转回工作中,<br>动作条自动切到下一个,红框/计数同步更新');sim('s1','working');await sleep(3400);
+  cap('全部处理完 →动作条收起,边框熄灭,回到安静状态 ✅');resolveAll();await sleep(2600);
+  cap(null);btn.disabled=false;
+}
+render();
+</script>
+</body>
+</html>

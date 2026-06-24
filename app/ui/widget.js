@@ -1,4 +1,4 @@
-const { listen } = window.__TAURI__.event;
+const { listen, emit } = window.__TAURI__.event;
 const { isPermissionGranted, requestPermission, sendNotification } =
   window.__TAURI__.notification;
 const { invoke } = window.__TAURI__.core;
@@ -31,29 +31,36 @@ function buildAssignments(sessions) {
   return map;
 }
 
-// 把窗口贴到主屏右下角，并随展开/收起改大小（避免大块死区挡住终端）
-const WIN_W = 268;
-const PILL_H = 52;
-const ROW_H = 46;
-const LIST_PAD = 16;
+// 把窗口贴到主屏右下角，按实际内容（药丸 + 动作条 + 展开列表）自适应大小。
+// 内容四周各留 PAD，避免窗口边界把面板的圆角/边缘裁成直角。
+const PAD = 8; // 必须 = .widget 的 right/bottom inset
 async function layout() {
   try {
-    const n = last.sessions.length || 1;
-    const h = expanded ? PILL_H + n * ROW_H + LIST_PAD + 24 : PILL_H + 8;
+    const el = document.querySelector(".widget");
+    const r = el.getBoundingClientRect();
+    const w = Math.ceil(r.width) + PAD * 2;
+    const h = Math.ceil(r.height) + PAD * 2;
     const mon = await winApi.primaryMonitor();
     const scale = mon.scaleFactor || 1;
     const sw = mon.size.width / scale;
     const sh = mon.size.height / scale;
-    const margin = 14;
-    await appWin.setSize(new winApi.LogicalSize(WIN_W, h));
+    const edge = 14; // 内容距屏幕边缘
+    await appWin.setSize(new winApi.LogicalSize(w, h));
     await appWin.setPosition(
-      new winApi.LogicalPosition(Math.round(sw - WIN_W - margin), Math.round(sh - h - margin))
+      new winApi.LogicalPosition(
+        Math.round(sw - edge + PAD - w),
+        Math.round(sh - edge + PAD - h)
+      )
     );
   } catch (_) {}
 }
 let lastSig = "";
 function maybeLayout() {
-  const sig = expanded + ":" + (last.sessions.length || 0);
+  const pl = pendingList();
+  const top = pl[0];
+  const sig =
+    expanded + ":" + (last.sessions.length || 0) + ":" + pl.length +
+    ":" + (top ? top.sessionId + top.state : "");
   if (sig !== lastSig) {
     lastSig = sig;
     layout();
@@ -77,9 +84,74 @@ const $ = (s) => document.querySelector(s);
 let expanded = false;
 let last = { sessions: [], agg: "idle" };
 
+// 「刚完成」绿的有效期：idle 且距上次更新不超过此秒数才算“待查看”
+const DONE_TTL = 300;
+const PEEK_PRIO = { waiting: 2, idle: 1 };
+const viewed = new Set();   // 已点开查看过的绿（跳转后标记，状态再变时清除）
+let jumpCursor = 0;
+let prevGreen = false;      // 绿框边沿触发用
+
+function nowSecs() { return Math.floor(Date.now() / 1000); }
+function isPending(s) {
+  if (s.state === "waiting") return true;
+  if (s.state === "idle" && nowSecs() - s.updatedAt < DONE_TTL) return true;
+  return false;
+}
+// 待响应集合（带 tab 分配），按 红>绿、再 (win,tab) 升序
+function pendingList() {
+  const asn = buildAssignments(last.sessions);
+  return last.sessions
+    .filter((s) => isPending(s) && !viewed.has(s.sessionId))
+    .map((s) => ({ ...s, asn: asn[s.sessionId] }))
+    .sort((a, b) => {
+      const pa = PEEK_PRIO[a.state] || 0, pb = PEEK_PRIO[b.state] || 0;
+      if (pa !== pb) return pb - pa;
+      const A = a.asn, B = b.asn;
+      if (A && B) return A.win - B.win || A.tab - B.tab;
+      return A ? -1 : B ? 1 : 0;
+    });
+}
+function hasPending() { return last.sessions.some((s) => isPending(s) && !viewed.has(s.sessionId)); }
+
 function dur(sec) {
   const d = Math.floor(Date.now() / 1000) - sec;
   return d < 60 ? d + "s" : Math.floor(d / 60) + "m";
+}
+
+function renderPeek() {
+  // 清理已失效的“已查看”标记：会话没了或不再是 idle 就移除
+  for (const id of [...viewed]) {
+    const s = last.sessions.find((x) => x.sessionId === id);
+    if (!s || s.state !== "idle") viewed.delete(id);
+  }
+  const pl = pendingList();
+  const peek = $("#peek");
+  if (!pl.length) { peek.classList.remove("show"); maybeGreen(false); return; }
+  if (jumpCursor >= pl.length) jumpCursor = 0;
+  const cur = pl[0]; // 动作条始终显示最紧急的那一个
+  $("#adot").style.background = COLORS[cur.state];
+  $("#adot").style.boxShadow = "0 0 7px " + COLORS[cur.state];
+  $("#adot").style.animation = cur.state === "waiting" ? "blink .6s steps(1) infinite" : "none";
+  const cmd = cur.asn ? ` <span class="rcmd">⌘${cur.asn.tab}</span>` : "";
+  $("#aname").innerHTML = cur.project + cmd;
+  $("#astate").textContent = LABEL[cur.state] + " · " + dur(cur.updatedAt);
+  $("#amore").textContent = pl.length > 1 ? "+" + (pl.length - 1) : "";
+  peek.classList.add("show");
+  // 绿框：无红 且 有刚完成绿 → 触发一次
+  const hasWaiting = pl.some((x) => x.state === "waiting");
+  maybeGreen(!hasWaiting && pl.some((x) => x.state === "idle"));
+}
+
+function maybeGreen(on) {
+  if (on && !prevGreen) emit("done-alert");
+  prevGreen = on;
+}
+
+function jumpTo(item) {
+  if (!item || !item.asn) return;
+  invoke("cc_jump_index", { win: item.asn.win, tab: item.asn.tab });
+  if (item.state === "idle") viewed.add(item.sessionId); // 绿点了=已查看
+  renderPeek();
 }
 
 function render(p) {
@@ -124,6 +196,7 @@ function render(p) {
       .join("") ||
     '<div class="row"><div class="rstate">无活跃会话</div></div>';
 
+  renderPeek();
   maybeLayout();
 }
 
@@ -175,6 +248,15 @@ listen("alert", async (e) => {
   }
 });
 
+listen("hotkey-cycle", async () => {
+  await refreshTabs();          // 确保 tabMap 最新（药丸没展开过时也能跳）
+  const pl = pendingList();
+  if (!pl.length) return;
+  const item = pl[jumpCursor % pl.length];
+  jumpTo(item);
+  jumpCursor = (jumpCursor + 1) % pl.length; // 下次跳下一个
+});
+
 $("#wbody").addEventListener("click", () => {
   expanded = !expanded;
   $("#list").classList.toggle("show", expanded);
@@ -190,6 +272,10 @@ $("#list").addEventListener("click", (e) => {
       tab: parseInt(row.dataset.tab, 10),
     });
 });
+$("#actionbar").addEventListener("click", () => {
+  const pl = pendingList();
+  if (pl.length) jumpTo(pl[0]);
+});
 $("#wbody").addEventListener("contextmenu", (ev) => {
   ev.preventDefault();
   localStorage.setItem(SOUND_KEY, soundOn() ? "off" : "on");
@@ -198,6 +284,6 @@ $("#wbody").addEventListener("contextmenu", (ev) => {
 
 setInterval(() => render(last), 5000);
 setInterval(() => {
-  if (expanded) refreshTabs();
+  if (expanded || hasPending()) refreshTabs();
 }, 4000);
 render(last);
